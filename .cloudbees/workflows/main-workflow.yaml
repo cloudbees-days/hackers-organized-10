@@ -5,14 +5,10 @@ on:
   push:
     branches:
       - "**"
-  workflow_dispatch:
 permissions:
   scm-token-own: read
   scm-token-org: read
   id-token: write
-env:
-  APP_NAME: hackers-organized
-  NAMESPACE: hackers-organized-prod
 jobs:
   test:
     outputs:
@@ -87,9 +83,9 @@ jobs:
         with:
           content: |-
             ## Built and pushed image to docker hub
-
+            
             [Docker Hub](https://hub.docker.com/repository/docker/ldonleycb/hackers-organized/tags)
-
+            
             Deployed hackers-organized:${{ cloudbees.scm.sha }}
           format: MARKDOWN
     needs: test
@@ -130,7 +126,7 @@ jobs:
         with:
           orgname: ${{ secrets.SNYK_ORGNAME }}
           token: ${{ secrets.SNYK_TOKEN }}
-          language: LANGUAGE_JS
+          language: "LANGUAGE_JS"
       - name: Fetch SonarQube Issues
         id: FetchSonarQubeIssues
         uses: docker://alpine/git:latest
@@ -143,7 +139,7 @@ jobs:
           CRITICAL_COUNT=$(jq '[.issues[] | select(.severity=="CRITICAL")] | length' sonar-issues.json)
           MAJOR_COUNT=$(jq '[.issues[] | select(.severity=="MAJOR")] | length' sonar-issues.json)
           MINOR_COUNT=$(jq '[.issues[] | select(.severity=="MINOR")] | length' sonar-issues.json)
-
+          
           echo "${BLOCKER_COUNT}" >> $CLOUDBEES_OUTPUTS/BLOCKER_COUNT
           echo "${CRITICAL_COUNT}" >> $CLOUDBEES_OUTPUTS/CRITICAL_COUNT
           echo "${MAJOR_COUNT}" >> $CLOUDBEES_OUTPUTS/MAJOR_COUNT
@@ -153,7 +149,7 @@ jobs:
         with:
           content: |-
             ## SonarQube Analysis Results
-
+            
             | Severity             | Issue Count |
             |----------------------|-------------|
             | BLOCKER_COUNT        | ${{ steps.FetchSonarQubeIssues.outputs.BLOCKER_COUNT }} |
@@ -170,25 +166,20 @@ jobs:
         name: Set kubeconfig
         with:
           secname: ${{ secrets.kubeconfig }}
-      - id: install-chart
-        name: Install helm chart
-        uses: cloudbees-io/helm-install@v1
+      - uses: cloudbees-io/kustomize-deploy@v1
+        name: Deploy to cluster
+        kind: deploy
         with:
-          chart-location: ${{ cloudbees.workspace }}/chart
-          release-name: ${{ env.APP_NAME }}
-          namespace: ${{ env.NAMESPACE }}
-          values: |
-            image:
-              tag: ${{ cloudbees.scm.sha }}
-            fmKey: ${{ secrets.FM_TOKEN }}
-            hostname: hackers-organized-prod.preview.cb-demos.io
+          kustomization-base-dir: ${{ cloudbees.workspace }}/k8s/base
+          kustomization-overlays-dir: ${{ cloudbees.workspace }}/k8s/overlays/prod
+          environment-variables: '{}'
       - name: Publish evidence
         uses: cloudbees-io/publish-evidence-item@v1
         with:
           content: |-
             ## Deployed environment
             [Production frontend](https://hackers-organized-prod.preview.cb-demos.io/)
-
+            
             Running hackers-organized:${{ cloudbees.scm.sha }}
           format: MARKDOWN
     needs:
