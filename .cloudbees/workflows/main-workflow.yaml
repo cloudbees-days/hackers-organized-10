@@ -10,6 +10,9 @@ permissions:
   scm-token-own: read
   scm-token-org: read
   id-token: write
+env:
+  APP_NAME: hackers-organized
+  NAMESPACE: hackers-organized-prod
 jobs:
   test:
     outputs:
@@ -167,19 +170,24 @@ jobs:
         name: Set kubeconfig
         with:
           secname: ${{ secrets.kubeconfig }}
-      - uses: cloudbees-io/kustomize-deploy@v1
-        name: Deploy to cluster
-        kind: deploy
+      - id: install-chart
+        name: Install helm chart
+        uses: cloudbees-io/helm-install@v1
         with:
-          kustomization-base-dir: ${{ cloudbees.workspace }}/k8s/base
-          kustomization-overlays-dir: ${{ cloudbees.workspace }}/k8s/overlays/prod
-          environment-variables: "{}"
+          chart-location: ${{ cloudbees.workspace }}/chart
+          release-name: ${{ env.APP_NAME }}
+          namespace: ${{ env.NAMESPACE }}
+          values: |
+            image:
+              tag: ${{ cloudbees.scm.sha }}
+            fmKey: ${{ secrets.FM_TOKEN }}
+            hostname: hackers-organized-prod.preview.cb-demos.io
       - name: Publish evidence
         uses: cloudbees-io/publish-evidence-item@v1
         with:
           content: |-
             ## Deployed environment
-            [Production frontend](https://hackers-organized.preview.cb-demos.io/)
+            [Production frontend](https://hackers-organized-prod.preview.cb-demos.io/)
 
             Running hackers-organized:${{ cloudbees.scm.sha }}
           format: MARKDOWN
